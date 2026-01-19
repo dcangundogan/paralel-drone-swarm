@@ -1,0 +1,31 @@
+ How to Run
+
+  Use the wrapper script to enable GPU:
+
+  # Terminal 1: Start Gazebo (if using simulation)
+  gz sim -s swarm_world.sdf --headless-rendering
+
+  # Terminal 2: Run with GPU enabled
+  cd ~/Documents/deneme7
+  ./run_swarm.sh --drones 25
+
+  Or set the environment manually:
+  export CUDA_PATH="/usr/local/MATLAB/R2025b/sys/cuda/glnxa64/cuda"
+  export LD_LIBRARY_PATH="/usr/local/MATLAB/R2025b/bin/glnxa64:$CUDA_PATH/lib64:$LD_LIBRARY_PATH"
+  python3 swarm_manager.py --drones 25
+
+  Commands in the swarm prompt:
+
+  spawn      - Create drones in Gazebo
+  takeoff    - Auto-arms + auto-starts + flies to 5m
+  circle     - Circle formation
+  traj circle - Follow circular trajectory
+  land       - Land all drones
+  status     - Show armed/active status
+  quit       - Exit
+
+  The 2D visualizer now shows:
+  - Purple X markers = spawn/initial positions
+  - Pink crosshairs = target positions
+  - Armed count in sidebar legend
+

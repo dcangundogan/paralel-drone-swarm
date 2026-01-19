@@ -1,0 +1,82 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <model name="quadcopter">
+    <pose>0 0 0.2 0 0 0</pose>
+    
+    <link name="base_link">
+      <inertial>
+        <mass>1.5</mass>
+        <inertia>
+          <ixx>0.015</ixx>
+          <iyy>0.015</iyy>
+          <izz>0.025</izz>
+        </inertia>
+      </inertial>
+      
+      <!-- Body -->
+      <collision name="body_collision">
+        <geometry>
+          <box>
+            <size>0.4 0.4 0.1</size>
+          </box>
+        </geometry>
+      </collision>
+      <visual name="body_visual">
+        <geometry>
+          <box>
+            <size>0.4 0.4 0.1</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.2 0.2 0.8 1</ambient>
+          <diffuse>0.3 0.3 0.9 1</diffuse>
+        </material>
+      </visual>
+      
+      <!-- Arms -->
+      <visual name="arm1">
+        <pose>0.15 0.15 0 0 0 0.785</pose>
+        <geometry><box><size>0.3 0.03 0.02</size></box></geometry>
+        <material><diffuse>0.3 0.3 0.3 1</diffuse></material>
+      </visual>
+      <visual name="arm2">
+        <pose>-0.15 0.15 0 0 0 -0.785</pose>
+        <geometry><box><size>0.3 0.03 0.02</size></box></geometry>
+        <material><diffuse>0.3 0.3 0.3 1</diffuse></material>
+      </visual>
+      <visual name="arm3">
+        <pose>-0.15 -0.15 0 0 0 0.785</pose>
+        <geometry><box><size>0.3 0.03 0.02</size></box></geometry>
+        <material><diffuse>0.3 0.3 0.3 1</diffuse></material>
+      </visual>
+      <visual name="arm4">
+        <pose>0.15 -0.15 0 0 0 -0.785</pose>
+        <geometry><box><size>0.3 0.03 0.02</size></box></geometry>
+        <material><diffuse>0.3 0.3 0.3 1</diffuse></material>
+      </visual>
+      
+      <!-- Motors -->
+      <visual name="motor1">
+        <pose>0.2 0.2 0.03 0 0 0</pose>
+        <geometry><cylinder><radius>0.05</radius><length>0.02</length></cylinder></geometry>
+        <material><diffuse>0.1 0.1 0.1 1</diffuse></material>
+      </visual>
+      <visual name="motor2">
+        <pose>-0.2 0.2 0.03 0 0 0</pose>
+        <geometry><cylinder><radius>0.05</radius><length>0.02</length></cylinder></geometry>
+        <material><diffuse>0.1 0.1 0.1 1</diffuse></material>
+      </visual>
+      <visual name="motor3">
+        <pose>-0.2 -0.2 0.03 0 0 0</pose>
+        <geometry><cylinder><radius>0.05</radius><length>0.02</length></cylinder></geometry>
+        <material><diffuse>0.1 0.1 0.1 1</diffuse></material>
+      </visual>
+      <visual name="motor4">
+        <pose>0.2 -0.2 0.03 0 0 0</pose>
+        <geometry><cylinder><radius>0.05</radius><length>0.02</length></cylinder></geometry>
+        <material><diffuse>0.1 0.1 0.1 1</diffuse></material>
+      </visual>
+    </link>
+
+  </model>
+</sdf>
