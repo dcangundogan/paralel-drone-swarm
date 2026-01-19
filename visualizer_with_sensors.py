@@ -88,38 +88,59 @@ class SensorPanelRenderer:
         # === IMU SECTION ===
         y = self._draw_section(surface, "IMU (400 Hz)", x, y, (100, 255, 150))
 
-        accel = sensor_data.get('imu_accel', np.zeros(3))
-        gyro = sensor_data.get('imu_gyro', np.zeros(3))
+        accel = sensor_data.get('imu_accel', None)
+        gyro = sensor_data.get('imu_gyro', None)
 
-        if len(accel) > selected_drone:
+        # Accel göster
+        if accel is not None and len(accel) > selected_drone:
             a = accel[selected_drone]
-            g = gyro[selected_drone]
-
-            self._draw_labeled_value(surface, "Accel X:", f"{a[0]:+.2f} m/s²", x, y)
-            y += 18
-            self._draw_labeled_value(surface, "Accel Y:", f"{a[1]:+.2f} m/s²", x, y)
-            y += 18
-            self._draw_labeled_value(surface, "Accel Z:", f"{a[2]:+.2f} m/s²", x, y)
+            if hasattr(a, '__len__') and len(a) >= 3:
+                self._draw_labeled_value(surface, "Accel X:", f"{a[0]:+.2f} m/s²", x, y)
+                y += 18
+                self._draw_labeled_value(surface, "Accel Y:", f"{a[1]:+.2f} m/s²", x, y)
+                y += 18
+                self._draw_labeled_value(surface, "Accel Z:", f"{a[2]:+.2f} m/s²", x, y)
+                y += 22
+            else:
+                self._draw_labeled_value(surface, "Accel:", "N/A", x, y)
+                y += 22
+        else:
+            self._draw_labeled_value(surface, "Accel:", "N/A", x, y)
             y += 22
 
-            self._draw_labeled_value(surface, "Gyro X:", f"{g[0]:+.3f} rad/s", x, y)
-            y += 18
-            self._draw_labeled_value(surface, "Gyro Y:", f"{g[1]:+.3f} rad/s", x, y)
-            y += 18
-            self._draw_labeled_value(surface, "Gyro Z:", f"{g[2]:+.3f} rad/s", x, y)
+        # Gyro göster
+        if gyro is not None and len(gyro) > selected_drone:
+            g = gyro[selected_drone]
+            if hasattr(g, '__len__') and len(g) >= 3:
+                self._draw_labeled_value(surface, "Gyro X:", f"{g[0]:+.3f} rad/s", x, y)
+                y += 18
+                self._draw_labeled_value(surface, "Gyro Y:", f"{g[1]:+.3f} rad/s", x, y)
+                y += 18
+                self._draw_labeled_value(surface, "Gyro Z:", f"{g[2]:+.3f} rad/s", x, y)
+                y += 25
+            else:
+                self._draw_labeled_value(surface, "Gyro:", "N/A", x, y)
+                y += 25
+        else:
+            self._draw_labeled_value(surface, "Gyro:", "N/A", x, y)
             y += 25
 
         # === GPS SECTION ===
         y = self._draw_section(surface, "GPS (10 Hz)", x, y, (255, 200, 100))
 
-        gps_pos = sensor_data.get('gps_position', np.zeros(3))
-        gps_vel = sensor_data.get('gps_velocity', np.zeros(3))
-        gps_valid = sensor_data.get('gps_valid', np.ones(1, dtype=bool))
+        # gps_positions veya gps_position olabilir
+        gps_pos = sensor_data.get('gps_positions', sensor_data.get('gps_position', None))
+        gps_vel = sensor_data.get('gps_velocity', None)
+        gps_valid = sensor_data.get('gps_valid', None)
 
-        if len(gps_pos) > selected_drone:
+        if gps_pos is not None and len(gps_pos) > selected_drone:
             pos = gps_pos[selected_drone]
-            vel = gps_vel[selected_drone]
-            valid = gps_valid[selected_drone] if len(gps_valid) > selected_drone else True
+
+            # GPS validity kontrolü
+            if gps_valid is not None and len(gps_valid) > selected_drone:
+                valid = gps_valid[selected_drone]
+            else:
+                valid = True
 
             # GPS durumu
             if valid:
@@ -133,40 +154,65 @@ class SensorPanelRenderer:
             surface.blit(status, (x, y))
             y += 22
 
-            self._draw_labeled_value(surface, "Lat (X):", f"{pos[0]:+.2f} m", x, y)
-            y += 18
-            self._draw_labeled_value(surface, "Lon (Y):", f"{pos[1]:+.2f} m", x, y)
-            y += 18
-            self._draw_labeled_value(surface, "Alt (Z):", f"{pos[2]:+.2f} m", x, y)
-            y += 22
+            if hasattr(pos, '__len__') and len(pos) >= 3:
+                self._draw_labeled_value(surface, "Lat (X):", f"{pos[0]:+.2f} m", x, y)
+                y += 18
+                self._draw_labeled_value(surface, "Lon (Y):", f"{pos[1]:+.2f} m", x, y)
+                y += 18
+                self._draw_labeled_value(surface, "Alt (Z):", f"{pos[2]:+.2f} m", x, y)
+                y += 22
+            else:
+                self._draw_labeled_value(surface, "Position:", "N/A", x, y)
+                y += 22
 
-            speed = np.linalg.norm(vel)
-            self._draw_labeled_value(surface, "Speed:", f"{speed:.2f} m/s", x, y)
+            # Velocity (varsa)
+            if gps_vel is not None and len(gps_vel) > selected_drone:
+                vel = gps_vel[selected_drone]
+                if hasattr(vel, '__len__'):
+                    speed = np.linalg.norm(vel)
+                    self._draw_labeled_value(surface, "Speed:", f"{speed:.2f} m/s", x, y)
+                else:
+                    self._draw_labeled_value(surface, "Speed:", "N/A", x, y)
+            else:
+                self._draw_labeled_value(surface, "Speed:", "N/A", x, y)
+            y += 25
+        else:
+            self._draw_labeled_value(surface, "GPS:", "N/A", x, y)
             y += 25
 
         # === BAROMETER SECTION ===
         y = self._draw_section(surface, "BAROMETER (50 Hz)", x, y, (200, 150, 255))
 
-        baro_alt = sensor_data.get('baro_altitude', np.zeros(1))
-        if len(baro_alt) > selected_drone:
+        baro_alt = sensor_data.get('baro_altitude', None)
+        if baro_alt is not None and len(baro_alt) > selected_drone:
             alt = baro_alt[selected_drone]
-            self._draw_labeled_value(surface, "Altitude:", f"{alt:.2f} m", x, y)
-            y += 25
+            if isinstance(alt, (int, float, np.floating)):
+                self._draw_labeled_value(surface, "Altitude:", f"{alt:.2f} m", x, y)
+            else:
+                self._draw_labeled_value(surface, "Altitude:", "N/A", x, y)
+        else:
+            self._draw_labeled_value(surface, "Altitude:", "N/A", x, y)
+        y += 25
 
         # === MAGNETOMETER SECTION ===
         y = self._draw_section(surface, "MAGNETOMETER (75 Hz)", x, y, (255, 150, 200))
 
-        mag_heading = sensor_data.get('mag_heading', np.zeros(1))
-        if len(mag_heading) > selected_drone:
+        mag_heading = sensor_data.get('mag_heading', None)
+        if mag_heading is not None and len(mag_heading) > selected_drone:
             heading_rad = mag_heading[selected_drone]
-            heading_deg = np.degrees(heading_rad) % 360
-
-            self._draw_labeled_value(surface, "Heading:", f"{heading_deg:.1f}°", x, y)
-            y += 20
-
-            # Pusula göstergesi
-            self._draw_compass(surface, x + 100, y + 40, 35, heading_rad)
-            y += 90
+            if isinstance(heading_rad, (int, float, np.floating)):
+                heading_deg = np.degrees(heading_rad) % 360
+                self._draw_labeled_value(surface, "Heading:", f"{heading_deg:.1f}°", x, y)
+                y += 20
+                # Pusula göstergesi
+                self._draw_compass(surface, x + 100, y + 40, 35, heading_rad)
+                y += 90
+            else:
+                self._draw_labeled_value(surface, "Heading:", "N/A", x, y)
+                y += 25
+        else:
+            self._draw_labeled_value(surface, "Heading:", "N/A", x, y)
+            y += 25
 
         # === ESTIMATION ERROR SECTION ===
         y = self._draw_section(surface, "KALMAN FILTER ERROR", x, y, (255, 100, 100))
