@@ -1,0 +1,63 @@
+# ============================================================
+# GPU Drone Swarm Simulation - Requirements
+# ============================================================
+#
+# INSTALLATION:
+#   pip install -r requirements.txt
+#
+# CUDA VERSION NOTE:
+#   CuPy must match your CUDA version!
+#   See cuda_config.py for automatic detection.
+#
+# ============================================================
+
+# Core Dependencies
+numpy>=1.21.0
+scipy>=1.7.0
+
+# Visualization
+pygame>=2.1.0
+
+# ============================================================
+# GPU ACCELERATION (CuPy)
+# ============================================================
+#
+# CuPy has different packages for different CUDA versions.
+# Install ONLY ONE of the following based on your CUDA version:
+#
+# Check your CUDA version:
+#   Windows: nvcc --version  OR  nvidia-smi
+#   Linux:   nvcc --version  OR  nvidia-smi
+#
+# CUDA 11.x (most common):
+#   pip install cupy-cuda11x
+#
+# CUDA 12.x (newer):
+#   pip install cupy-cuda12x
+#
+# Specific CUDA versions:
+#   pip install cupy-cuda110   # CUDA 11.0
+#   pip install cupy-cuda111   # CUDA 11.1
+#   pip install cupy-cuda112   # CUDA 11.2
+#   pip install cupy-cuda113   # CUDA 11.3
+#   pip install cupy-cuda114   # CUDA 11.4
+#   pip install cupy-cuda115   # CUDA 11.5
+#   pip install cupy-cuda116   # CUDA 11.6
+#   pip install cupy-cuda117   # CUDA 11.7
+#   pip install cupy-cuda118   # CUDA 11.8
+#   pip install cupy-cuda120   # CUDA 12.0
+#   pip install cupy-cuda121   # CUDA 12.1
+#   pip install cupy-cuda122   # CUDA 12.2
+#   pip install cupy-cuda123   # CUDA 12.3
+#   pip install cupy-cuda124   # CUDA 12.4
+#
+# NO GPU? No problem! The simulation falls back to NumPy (CPU).
+# Just skip CuPy installation entirely.
+#
+# ============================================================
+
+# Optional: Testing
+# pytest>=7.0.0
+
+# Optional: Type checking
+# mypy>=1.0.0
