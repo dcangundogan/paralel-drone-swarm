@@ -24,6 +24,9 @@ from gpu_swarm_simulation import GPUSwarmSimulation
 # Visualizer
 from visualizer_with_sensors import AdvancedSwarmVisualizer, VisualizerConfig
 
+# Performance Monitor
+from performance_monitor import PerformanceMonitor
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -52,6 +55,11 @@ def main():
         meters_per_pixel=0.1 if args.drones > 50 else 0.05,
     )
     viz = AdvancedSwarmVisualizer(args.drones, viz_config)
+
+    # Performance Monitor
+    perf_monitor = PerformanceMonitor(history_size=60)
+    viz.set_performance_monitor(perf_monitor)
+    print("[SYSTEM] Performance monitor initialized")
 
     # ========================================================================
     # BAŞLAT
@@ -84,6 +92,9 @@ def main():
         while viz.running:
             frame_start = time.time()
 
+            # Start performance frame
+            perf_monitor.start_frame()
+
             # --- Event handling ---
             if not viz.handle_events():
                 break
@@ -112,8 +123,10 @@ def main():
             if waypoint is not None:
                 sim.set_waypoint(waypoint[0], waypoint[1], waypoint[2])
 
-            # --- Simulation step ---
+            # --- Simulation step (includes physics, sensors, control) ---
+            perf_monitor.start_section("physics")
             sim.step()
+            perf_monitor.end_section("physics")
 
             # --- Get state for visualization ---
             state = sim.get_state()
@@ -138,7 +151,12 @@ def main():
                 viz.update_sensor_data(state['sensor_data'], errors)
 
             # --- Draw ---
+            perf_monitor.start_section("render")
             viz.draw()
+            perf_monitor.end_section("render")
+
+            # End performance frame
+            perf_monitor.end_frame()
 
             # --- FPS calculation ---
             frame_count += 1

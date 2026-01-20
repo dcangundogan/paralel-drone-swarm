@@ -16,23 +16,25 @@ import numpy as np
 import time
 from typing import Optional, Tuple, List
 from dataclasses import dataclass
+from performance_monitor import PerformanceMonitor
 
 
 @dataclass
 class VisualizerConfig:
     """Visualizer ayarları"""
-    window_width: int = 1400          # Daha geniş (sensör paneli için)
+
+    window_width: int = 1400  # Daha geniş (sensör paneli için)
     window_height: int = 900
-    map_width: int = 1000             # Harita alanı
-    panel_width: int = 400            # Sensör paneli
+    map_width: int = 1000  # Harita alanı
+    panel_width: int = 400  # Sensör paneli
     background_color: Tuple = (20, 25, 30)
     grid_color: Tuple = (40, 45, 50)
     text_color: Tuple = (200, 200, 200)
-    fps: int = 60                     # 60 FPS for smooth rendering
+    fps: int = 60  # 60 FPS for smooth rendering
 
     # Harita
-    meters_per_pixel: float = 0.05    # 1 pixel = 5 cm
-    grid_spacing: float = 5.0         # 5 metre grid
+    meters_per_pixel: float = 0.05  # 1 pixel = 5 cm
+    grid_spacing: float = 5.0  # 5 metre grid
 
     # Drone görünümü
     drone_radius: int = 12
@@ -49,14 +51,22 @@ class SensorPanelRenderer:
 
     def init_fonts(self):
         self.fonts = {
-            'title': pygame.font.SysFont('consolas', 18, bold=True),
-            'header': pygame.font.SysFont('consolas', 14, bold=True),
-            'normal': pygame.font.SysFont('consolas', 12),
-            'small': pygame.font.SysFont('consolas', 10),
+            "title": pygame.font.SysFont("consolas", 18, bold=True),
+            "header": pygame.font.SysFont("consolas", 14, bold=True),
+            "normal": pygame.font.SysFont("consolas", 12),
+            "small": pygame.font.SysFont("consolas", 10),
         }
 
-    def draw(self, surface: pygame.Surface, sensor_data: dict, selected_drone: int,
-             estimation_errors: dict, num_drones: int):
+    def draw(
+        self,
+        surface: pygame.Surface,
+        sensor_data: dict,
+        selected_drone: int,
+        estimation_errors: dict,
+        num_drones: int,
+        performance_monitor: Optional[PerformanceMonitor] = None,
+        show_performance: bool = False,
+    ):
         """Sensör panelini çiz"""
 
         # Panel arka planı
@@ -67,34 +77,40 @@ class SensorPanelRenderer:
         y = self.rect.y + 15
 
         # Başlık
-        title = self.fonts['title'].render("SENSOR MONITOR", True, (100, 200, 255))
+        title = self.fonts["title"].render("SENSOR MONITOR", True, (100, 200, 255))
         surface.blit(title, (x, y))
         y += 30
 
         # Seçili drone
-        drone_text = self.fonts['header'].render(f"Drone #{selected_drone} / {num_drones-1}", True, (255, 200, 100))
+        drone_text = self.fonts["header"].render(
+            f"Drone #{selected_drone} / {num_drones - 1}", True, (255, 200, 100)
+        )
         surface.blit(drone_text, (x, y))
         y += 25
 
         # Çizgi
-        pygame.draw.line(surface, (60, 65, 70), (x, y), (x + self.rect.width - 30, y), 1)
+        pygame.draw.line(
+            surface, (60, 65, 70), (x, y), (x + self.rect.width - 30, y), 1
+        )
         y += 15
 
         if not sensor_data:
-            no_data = self.fonts['normal'].render("Sensör verisi yok", True, (150, 150, 150))
+            no_data = self.fonts["normal"].render(
+                "Sensör verisi yok", True, (150, 150, 150)
+            )
             surface.blit(no_data, (x, y))
             return
 
         # === IMU SECTION ===
         y = self._draw_section(surface, "IMU (400 Hz)", x, y, (100, 255, 150))
 
-        accel = sensor_data.get('imu_accel', None)
-        gyro = sensor_data.get('imu_gyro', None)
+        accel = sensor_data.get("imu_accel", None)
+        gyro = sensor_data.get("imu_gyro", None)
 
         # Accel göster
         if accel is not None and len(accel) > selected_drone:
             a = accel[selected_drone]
-            if hasattr(a, '__len__') and len(a) >= 3:
+            if hasattr(a, "__len__") and len(a) >= 3:
                 self._draw_labeled_value(surface, "Accel X:", f"{a[0]:+.2f} m/s²", x, y)
                 y += 18
                 self._draw_labeled_value(surface, "Accel Y:", f"{a[1]:+.2f} m/s²", x, y)
@@ -111,7 +127,7 @@ class SensorPanelRenderer:
         # Gyro göster
         if gyro is not None and len(gyro) > selected_drone:
             g = gyro[selected_drone]
-            if hasattr(g, '__len__') and len(g) >= 3:
+            if hasattr(g, "__len__") and len(g) >= 3:
                 self._draw_labeled_value(surface, "Gyro X:", f"{g[0]:+.3f} rad/s", x, y)
                 y += 18
                 self._draw_labeled_value(surface, "Gyro Y:", f"{g[1]:+.3f} rad/s", x, y)
@@ -129,9 +145,11 @@ class SensorPanelRenderer:
         y = self._draw_section(surface, "GPS (10 Hz)", x, y, (255, 200, 100))
 
         # gps_positions veya gps_position olabilir
-        gps_pos = sensor_data.get('gps_positions', sensor_data.get('gps_position', None))
-        gps_vel = sensor_data.get('gps_velocity', None)
-        gps_valid = sensor_data.get('gps_valid', None)
+        gps_pos = sensor_data.get(
+            "gps_positions", sensor_data.get("gps_position", None)
+        )
+        gps_vel = sensor_data.get("gps_velocity", None)
+        gps_valid = sensor_data.get("gps_valid", None)
 
         if gps_pos is not None and len(gps_pos) > selected_drone:
             pos = gps_pos[selected_drone]
@@ -150,11 +168,13 @@ class SensorPanelRenderer:
                 status_color = (255, 100, 100)
                 status_text = "NO SIGNAL"
 
-            status = self.fonts['header'].render(f"Status: {status_text}", True, status_color)
+            status = self.fonts["header"].render(
+                f"Status: {status_text}", True, status_color
+            )
             surface.blit(status, (x, y))
             y += 22
 
-            if hasattr(pos, '__len__') and len(pos) >= 3:
+            if hasattr(pos, "__len__") and len(pos) >= 3:
                 self._draw_labeled_value(surface, "Lat (X):", f"{pos[0]:+.2f} m", x, y)
                 y += 18
                 self._draw_labeled_value(surface, "Lon (Y):", f"{pos[1]:+.2f} m", x, y)
@@ -168,9 +188,11 @@ class SensorPanelRenderer:
             # Velocity (varsa)
             if gps_vel is not None and len(gps_vel) > selected_drone:
                 vel = gps_vel[selected_drone]
-                if hasattr(vel, '__len__'):
+                if hasattr(vel, "__len__"):
                     speed = np.linalg.norm(vel)
-                    self._draw_labeled_value(surface, "Speed:", f"{speed:.2f} m/s", x, y)
+                    self._draw_labeled_value(
+                        surface, "Speed:", f"{speed:.2f} m/s", x, y
+                    )
                 else:
                     self._draw_labeled_value(surface, "Speed:", "N/A", x, y)
             else:
@@ -183,7 +205,7 @@ class SensorPanelRenderer:
         # === BAROMETER SECTION ===
         y = self._draw_section(surface, "BAROMETER (50 Hz)", x, y, (200, 150, 255))
 
-        baro_alt = sensor_data.get('baro_altitude', None)
+        baro_alt = sensor_data.get("baro_altitude", None)
         if baro_alt is not None and len(baro_alt) > selected_drone:
             alt = baro_alt[selected_drone]
             if isinstance(alt, (int, float, np.floating)):
@@ -197,12 +219,14 @@ class SensorPanelRenderer:
         # === MAGNETOMETER SECTION ===
         y = self._draw_section(surface, "MAGNETOMETER (75 Hz)", x, y, (255, 150, 200))
 
-        mag_heading = sensor_data.get('mag_heading', None)
+        mag_heading = sensor_data.get("mag_heading", None)
         if mag_heading is not None and len(mag_heading) > selected_drone:
             heading_rad = mag_heading[selected_drone]
             if isinstance(heading_rad, (int, float, np.floating)):
                 heading_deg = np.degrees(heading_rad) % 360
-                self._draw_labeled_value(surface, "Heading:", f"{heading_deg:.1f}°", x, y)
+                self._draw_labeled_value(
+                    surface, "Heading:", f"{heading_deg:.1f}°", x, y
+                )
                 y += 20
                 # Pusula göstergesi
                 self._draw_compass(surface, x + 100, y + 40, 35, heading_rad)
@@ -218,13 +242,28 @@ class SensorPanelRenderer:
         y = self._draw_section(surface, "KALMAN FILTER ERROR", x, y, (255, 100, 100))
 
         if estimation_errors:
-            pos_rmse = estimation_errors.get('position_rmse', np.zeros(3))
-            vel_rmse = estimation_errors.get('velocity_rmse', np.zeros(3))
+            pos_rmse = estimation_errors.get("position_rmse", np.zeros(3))
+            vel_rmse = estimation_errors.get("velocity_rmse", np.zeros(3))
 
-            self._draw_labeled_value(surface, "Pos RMSE:", f"{np.mean(pos_rmse):.3f} m", x, y)
+            self._draw_labeled_value(
+                surface, "Pos RMSE:", f"{np.mean(pos_rmse):.3f} m", x, y
+            )
             y += 18
-            self._draw_labeled_value(surface, "Vel RMSE:", f"{np.mean(vel_rmse):.3f} m/s", x, y)
+            self._draw_labeled_value(
+                surface, "Vel RMSE:", f"{np.mean(vel_rmse):.3f} m/s", x, y
+            )
             y += 25
+
+        # === PERFORMANCE SECTION ===
+        if show_performance and performance_monitor:
+            y = performance_monitor.draw(
+                surface,
+                x,
+                y,
+                self.rect.width - 30,
+                self.fonts["normal"],
+                self.fonts["small"],
+            )
 
         # === CONTROLS ===
         y = self._draw_section(surface, "CONTROLS", x, y, (150, 150, 150))
@@ -233,33 +272,36 @@ class SensorPanelRenderer:
             "Click map: Set waypoint",
             "1-9: Select drone",
             "A: Select all drones",
+            "P: Toggle performance",
             "SPACE: Takeoff",
             "L: Land",
             "G: Grid formation",
             "C: Circle formation",
             "+/-: Zoom",
             "Arrow keys: Pan",
-            "Q/ESC: Quit"
+            "Q/ESC: Quit",
         ]
 
         for ctrl in controls:
-            text = self.fonts['small'].render(ctrl, True, (150, 150, 150))
+            text = self.fonts["small"].render(ctrl, True, (150, 150, 150))
             surface.blit(text, (x, y))
             y += 15
 
     def _draw_section(self, surface, title: str, x: int, y: int, color: Tuple) -> int:
         """Section başlığı çiz"""
-        pygame.draw.line(surface, (60, 65, 70), (x, y), (x + self.rect.width - 30, y), 1)
+        pygame.draw.line(
+            surface, (60, 65, 70), (x, y), (x + self.rect.width - 30, y), 1
+        )
         y += 8
-        text = self.fonts['header'].render(title, True, color)
+        text = self.fonts["header"].render(title, True, color)
         surface.blit(text, (x, y))
         y += 22
         return y
 
     def _draw_labeled_value(self, surface, label: str, value: str, x: int, y: int):
         """Label: Value formatında çiz"""
-        label_surf = self.fonts['normal'].render(label, True, (150, 150, 150))
-        value_surf = self.fonts['normal'].render(value, True, (220, 220, 220))
+        label_surf = self.fonts["normal"].render(label, True, (150, 150, 150))
+        value_surf = self.fonts["normal"].render(value, True, (220, 220, 220))
         surface.blit(label_surf, (x, y))
         surface.blit(value_surf, (x + 100, y))
 
@@ -269,8 +311,8 @@ class SensorPanelRenderer:
         pygame.draw.circle(surface, (60, 65, 70), (cx, cy), radius, 2)
 
         # N, E, S, W işaretleri
-        font = self.fonts['small']
-        dirs = [('N', 0), ('E', 90), ('S', 180), ('W', 270)]
+        font = self.fonts["small"]
+        dirs = [("N", 0), ("E", 90), ("S", 180), ("W", 270)]
         for label, angle in dirs:
             rad = np.radians(angle - 90)
             tx = cx + (radius + 10) * np.cos(rad)
@@ -280,8 +322,8 @@ class SensorPanelRenderer:
 
         # Heading iğnesi
         needle_len = radius - 5
-        nx = cx + needle_len * np.cos(heading - np.pi/2)
-        ny = cy + needle_len * np.sin(heading - np.pi/2)
+        nx = cx + needle_len * np.cos(heading - np.pi / 2)
+        ny = cy + needle_len * np.sin(heading - np.pi / 2)
         pygame.draw.line(surface, (255, 100, 100), (cx, cy), (int(nx), int(ny)), 3)
 
         # Merkez nokta
@@ -305,15 +347,14 @@ class AdvancedSwarmVisualizer:
 
         # Fonts
         self.fonts = {
-            'large': pygame.font.SysFont('consolas', 16, bold=True),
-            'normal': pygame.font.SysFont('consolas', 12),
-            'small': pygame.font.SysFont('consolas', 10),
+            "large": pygame.font.SysFont("consolas", 16, bold=True),
+            "normal": pygame.font.SysFont("consolas", 12),
+            "small": pygame.font.SysFont("consolas", 10),
         }
 
         # Sensor panel
         self.sensor_panel = SensorPanelRenderer(
-            self.config.map_width, 0,
-            self.config.panel_width, self.config.window_height
+            self.config.map_width, 0, self.config.panel_width, self.config.window_height
         )
         self.sensor_panel.init_fonts()
 
@@ -329,16 +370,22 @@ class AdvancedSwarmVisualizer:
 
         # View settings
         self.zoom = 1.0
-        self.offset = np.array([self.config.map_width / 2, self.config.window_height / 2])
+        self.offset = np.array(
+            [self.config.map_width / 2, self.config.window_height / 2]
+        )
 
         # Selection & waypoints
-        self.selected_drone = 0           # Sensör panelinde gösterilen drone
+        self.selected_drone = 0  # Sensör panelinde gösterilen drone
         self.selected_drones = set(range(num_drones))  # Waypoint'e gidecek drone'lar
-        self.waypoint = None              # (x, y, z) - tıklanan nokta
-        self.waypoint_history = []        # Geçmiş waypoint'ler
+        self.waypoint = None  # (x, y, z) - tıklanan nokta
+        self.waypoint_history = []  # Geçmiş waypoint'ler
 
         # GPS validity tracking
         self.gps_valid = np.ones(num_drones, dtype=bool)
+
+        # Performance monitoring
+        self.performance_monitor = None  # Will be set by external caller
+        self.show_performance = True  # Toggle with P key (visible by default)
 
         self.running = True
 
@@ -356,8 +403,13 @@ class AdvancedSwarmVisualizer:
         world_y = (self.offset[1] - screen_pos[1]) / scale  # Y ters
         return np.array([world_x, world_y])
 
-    def update_state(self, positions: np.ndarray, velocities: np.ndarray = None,
-                    targets: np.ndarray = None, armed: np.ndarray = None):
+    def update_state(
+        self,
+        positions: np.ndarray,
+        velocities: np.ndarray = None,
+        targets: np.ndarray = None,
+        armed: np.ndarray = None,
+    ):
         """Drone durumlarını güncelle"""
         self.positions = positions.copy()
         if velocities is not None:
@@ -374,8 +426,12 @@ class AdvancedSwarmVisualizer:
             self.estimation_errors = estimation_errors
 
         # GPS validity güncelle
-        if 'gps_valid' in sensor_data:
-            self.gps_valid = sensor_data['gps_valid']
+        if "gps_valid" in sensor_data:
+            self.gps_valid = sensor_data["gps_valid"]
+
+    def set_performance_monitor(self, monitor: PerformanceMonitor):
+        """Set the performance monitor instance."""
+        self.performance_monitor = monitor
 
     def get_waypoint(self) -> Optional[np.ndarray]:
         """Mevcut waypoint'i döndür (varsa)"""
@@ -424,7 +480,9 @@ class AdvancedSwarmVisualizer:
                 # Reset view
                 elif event.key == pygame.K_r:
                     self.zoom = 1.0
-                    self.offset = np.array([self.config.map_width / 2, self.config.window_height / 2])
+                    self.offset = np.array(
+                        [self.config.map_width / 2, self.config.window_height / 2]
+                    )
 
                 # Drone selection (1-9 keys)
                 elif pygame.K_1 <= event.key <= pygame.K_9:
@@ -448,6 +506,12 @@ class AdvancedSwarmVisualizer:
                 elif event.key == pygame.K_c:
                     self.clear_waypoint()
 
+                # Toggle performance panel
+                elif event.key == pygame.K_p:
+                    self.show_performance = not self.show_performance
+                    status = "shown" if self.show_performance else "hidden"
+                    print(f"[VIZ] Performance panel {status}")
+
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Sol tık
                     mouse_pos = pygame.mouse.get_pos()
@@ -457,10 +521,18 @@ class AdvancedSwarmVisualizer:
                         world_pos = self.screen_to_world(mouse_pos)
 
                         # Mevcut ortalama irtifayı kullan
-                        avg_altitude = np.mean(self.targets[:, 2]) if np.any(self.targets[:, 2] > 0) else 5.0
+                        avg_altitude = (
+                            np.mean(self.targets[:, 2])
+                            if np.any(self.targets[:, 2] > 0)
+                            else 5.0
+                        )
 
-                        self.waypoint = np.array([world_pos[0], world_pos[1], avg_altitude])
-                        print(f"[NAV] Waypoint set: ({world_pos[0]:.1f}, {world_pos[1]:.1f}, {avg_altitude:.1f})")
+                        self.waypoint = np.array(
+                            [world_pos[0], world_pos[1], avg_altitude]
+                        )
+                        print(
+                            f"[NAV] Waypoint set: ({world_pos[0]:.1f}, {world_pos[1]:.1f}, {avg_altitude:.1f})"
+                        )
                         print(f"[NAV] Selected drones: {sorted(self.selected_drones)}")
 
                 elif event.button == 3:  # Sağ tık - waypoint temizle
@@ -495,17 +567,26 @@ class AdvancedSwarmVisualizer:
                 # İç daire
                 pygame.draw.circle(self.screen, (255, 150, 50), wp_screen, 10)
                 # X işareti
-                pygame.draw.line(self.screen, (50, 50, 50),
-                               (wp_screen[0]-5, wp_screen[1]-5),
-                               (wp_screen[0]+5, wp_screen[1]+5), 2)
-                pygame.draw.line(self.screen, (50, 50, 50),
-                               (wp_screen[0]-5, wp_screen[1]+5),
-                               (wp_screen[0]+5, wp_screen[1]-5), 2)
+                pygame.draw.line(
+                    self.screen,
+                    (50, 50, 50),
+                    (wp_screen[0] - 5, wp_screen[1] - 5),
+                    (wp_screen[0] + 5, wp_screen[1] + 5),
+                    2,
+                )
+                pygame.draw.line(
+                    self.screen,
+                    (50, 50, 50),
+                    (wp_screen[0] - 5, wp_screen[1] + 5),
+                    (wp_screen[0] + 5, wp_screen[1] - 5),
+                    2,
+                )
 
                 # Waypoint koordinatları
-                wp_text = self.fonts['small'].render(
+                wp_text = self.fonts["small"].render(
                     f"WP: ({self.waypoint[0]:.1f}, {self.waypoint[1]:.1f})",
-                    True, (255, 200, 100)
+                    True,
+                    (255, 200, 100),
                 )
                 self.screen.blit(wp_text, (wp_screen[0] + 15, wp_screen[1] - 10))
 
@@ -524,7 +605,9 @@ class AdvancedSwarmVisualizer:
             self.sensor_data,
             self.selected_drone,
             self.estimation_errors,
-            self.num_drones
+            self.num_drones,
+            self.performance_monitor,
+            self.show_performance,
         )
 
         pygame.display.flip()
@@ -539,24 +622,41 @@ class AdvancedSwarmVisualizer:
         start_x = self.offset[0] % spacing_pixels
         x = start_x
         while x < self.config.map_width:
-            pygame.draw.line(self.screen, self.config.grid_color,
-                           (int(x), 0), (int(x), self.config.window_height), 1)
+            pygame.draw.line(
+                self.screen,
+                self.config.grid_color,
+                (int(x), 0),
+                (int(x), self.config.window_height),
+                1,
+            )
             x += spacing_pixels
 
         # Yatay çizgiler
         start_y = self.offset[1] % spacing_pixels
         y = start_y
         while y < self.config.window_height:
-            pygame.draw.line(self.screen, self.config.grid_color,
-                           (0, int(y)), (self.config.map_width, int(y)), 1)
+            pygame.draw.line(
+                self.screen,
+                self.config.grid_color,
+                (0, int(y)),
+                (self.config.map_width, int(y)),
+                1,
+            )
             y += spacing_pixels
 
         # Origin işareti
         origin = self.world_to_screen(np.array([0, 0, 0]))
-        if 0 <= origin[0] < self.config.map_width and 0 <= origin[1] < self.config.window_height:
+        if (
+            0 <= origin[0] < self.config.map_width
+            and 0 <= origin[1] < self.config.window_height
+        ):
             pygame.draw.circle(self.screen, (100, 100, 100), origin, 5)
-            pygame.draw.line(self.screen, (150, 80, 80), origin, (origin[0] + 30, origin[1]), 2)  # X axis
-            pygame.draw.line(self.screen, (80, 150, 80), origin, (origin[0], origin[1] - 30), 2)  # Y axis
+            pygame.draw.line(
+                self.screen, (150, 80, 80), origin, (origin[0] + 30, origin[1]), 2
+            )  # X axis
+            pygame.draw.line(
+                self.screen, (80, 150, 80), origin, (origin[0], origin[1] - 30), 2
+            )  # Y axis
 
     def _draw_targets(self):
         """Hedef pozisyonları çiz"""
@@ -618,11 +718,13 @@ class AdvancedSwarmVisualizer:
             pygame.draw.circle(self.screen, base_color, screen_pos, radius)
 
             # Dış çerçeve
-            border_color = (255, 255, 255) if i == self.selected_drone else (100, 100, 100)
+            border_color = (
+                (255, 255, 255) if i == self.selected_drone else (100, 100, 100)
+            )
             pygame.draw.circle(self.screen, border_color, screen_pos, radius, 2)
 
             # Drone ID
-            id_text = self.fonts['small'].render(str(i), True, (0, 0, 0))
+            id_text = self.fonts["small"].render(str(i), True, (0, 0, 0))
             text_rect = id_text.get_rect(center=screen_pos)
             self.screen.blit(id_text, text_rect)
 
@@ -631,7 +733,7 @@ class AdvancedSwarmVisualizer:
                 vel_scale = 15
                 end_pos = (
                     screen_pos[0] + int(vel[0] * vel_scale),
-                    screen_pos[1] - int(vel[1] * vel_scale)
+                    screen_pos[1] - int(vel[1] * vel_scale),
                 )
                 pygame.draw.line(self.screen, (0, 255, 255), screen_pos, end_pos, 2)
 
@@ -639,48 +741,51 @@ class AdvancedSwarmVisualizer:
             if i in self.selected_drones:
                 target_screen = self.world_to_screen(self.targets[i])
                 if 0 <= target_screen[0] < self.config.map_width:
-                    pygame.draw.line(self.screen, (80, 80, 100),
-                                   screen_pos, target_screen, 1)
+                    pygame.draw.line(
+                        self.screen, (80, 80, 100), screen_pos, target_screen, 1
+                    )
 
     def _draw_map_info(self):
         """Harita üzerinde bilgi göster"""
         y = 10
 
         # Zoom
-        zoom_text = self.fonts['normal'].render(f"Zoom: {1/self.zoom:.1f}x", True, (150, 150, 150))
+        zoom_text = self.fonts["normal"].render(
+            f"Zoom: {1 / self.zoom:.1f}x", True, (150, 150, 150)
+        )
         self.screen.blit(zoom_text, (10, y))
         y += 20
 
         # Seçili drone sayısı
-        sel_text = self.fonts['normal'].render(
-            f"Selected: {len(self.selected_drones)} drones",
-            True, (100, 200, 255)
+        sel_text = self.fonts["normal"].render(
+            f"Selected: {len(self.selected_drones)} drones", True, (100, 200, 255)
         )
         self.screen.blit(sel_text, (10, y))
         y += 20
 
         # Waypoint durumu
         if self.waypoint is not None:
-            wp_text = self.fonts['normal'].render(
+            wp_text = self.fonts["normal"].render(
                 f"Waypoint: ({self.waypoint[0]:.1f}, {self.waypoint[1]:.1f}, {self.waypoint[2]:.1f})",
-                True, (255, 200, 100)
+                True,
+                (255, 200, 100),
             )
         else:
-            wp_text = self.fonts['normal'].render("Click map to set waypoint", True, (100, 100, 100))
+            wp_text = self.fonts["normal"].render(
+                "Click map to set waypoint", True, (100, 100, 100)
+            )
         self.screen.blit(wp_text, (10, y))
         y += 20
 
         # GPS durumu özeti
         gps_ok = np.sum(self.gps_valid)
         if gps_ok < self.num_drones:
-            gps_text = self.fonts['normal'].render(
-                f"GPS: {gps_ok}/{self.num_drones} valid",
-                True, (255, 100, 100)
+            gps_text = self.fonts["normal"].render(
+                f"GPS: {gps_ok}/{self.num_drones} valid", True, (255, 100, 100)
             )
         else:
-            gps_text = self.fonts['normal'].render(
-                f"GPS: All valid",
-                True, (100, 255, 100)
+            gps_text = self.fonts["normal"].render(
+                f"GPS: All valid", True, (100, 255, 100)
             )
         self.screen.blit(gps_text, (10, y))
 
@@ -693,11 +798,12 @@ class AdvancedSwarmVisualizer:
 # STANDALONE DEMO
 # ============================================================
 
+
 def demo_visualizer():
     """Visualizer demo (sensör simülasyonu ile)"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("ADVANCED VISUALIZER DEMO")
-    print("="*60)
+    print("=" * 60)
     print("Controls:")
     print("  - Click on map to set waypoint")
     print("  - 1-9: Select drone for sensor view")
@@ -705,7 +811,7 @@ def demo_visualizer():
     print("  - +/-: Zoom")
     print("  - Arrow keys: Pan")
     print("  - Q/ESC: Quit")
-    print("="*60)
+    print("=" * 60)
 
     num_drones = 10
     viz = AdvancedSwarmVisualizer(num_drones)
@@ -713,9 +819,13 @@ def demo_visualizer():
     # Sensör simülasyonu import et
     try:
         from gpu_sensors import GPUSensorSimulator, SensorConfig
-        sensors = GPUSensorSimulator(num_drones, SensorConfig(
-            gps_dropout_prob=0.05  # %5 GPS kaybı
-        ))
+
+        sensors = GPUSensorSimulator(
+            num_drones,
+            SensorConfig(
+                gps_dropout_prob=0.05  # %5 GPS kaybı
+            ),
+        )
         has_sensors = True
         print("[DEMO] Sensör simülasyonu aktif")
     except ImportError:

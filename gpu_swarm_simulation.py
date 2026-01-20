@@ -81,16 +81,21 @@ try:
     import cupy as cp
 
     # GPU test
-    cp.cuda.Device(0).compute_capability
+    device = cp.cuda.Device(0)
+    device.compute_capability
     test = cp.array([1, 2, 3])
     _ = cp.sum(test)
+
+    # Get GPU name properly
+    props = cp.cuda.runtime.getDeviceProperties(device.id)
+    gpu_name = props["name"].decode("utf-8")
 
     GPU_AVAILABLE = True
     xp = cp  # xp = cupy (GPU)
     print("=" * 60)
     print("GPU: CUDA AKTIF")
-    print(f"GPU: {cp.cuda.Device(0).name}")
-    print(f"GPU Memory: {cp.cuda.Device(0).mem_info[1] / 1024**3:.1f} GB")
+    print(f"GPU: {gpu_name}")
+    print(f"GPU Memory: {device.mem_info[1] / 1024**3:.1f} GB")
     print("=" * 60)
 
 except Exception as e:
@@ -106,6 +111,7 @@ except Exception as e:
 # CONFIGURATION
 # ============================================================================
 
+
 @dataclass
 class SimulationConfig:
     """
@@ -118,42 +124,43 @@ class SimulationConfig:
     num_drones: int = 25
 
     # Fizik
-    physics_dt: float = 0.004          # 250 Hz fizik (saniye/adım)
-    gravity: float = 9.81              # m/s²
-    air_density: float = 1.225         # kg/m³
+    physics_dt: float = 0.004  # 250 Hz fizik (saniye/adım)
+    gravity: float = 9.81  # m/s²
+    air_density: float = 1.225  # kg/m³
 
     # Quadcopter özellikleri
-    mass: float = 1.5                  # kg
-    arm_length: float = 0.2            # m
-    prop_diameter: float = 0.254       # m (10 inch)
-    max_thrust: float = 20.0           # N (toplam 4 motor)
+    mass: float = 1.5  # kg
+    arm_length: float = 0.2  # m
+    prop_diameter: float = 0.254  # m (10 inch)
+    max_thrust: float = 20.0  # N (toplam 4 motor)
     motor_time_constant: float = 0.05  # s (motor tepki süresi)
-    drag_coefficient: float = 0.5      # Hava direnci katsayısı
+    drag_coefficient: float = 0.5  # Hava direnci katsayısı
 
     # Velocity limitleri
-    max_velocity_xy: float = 5.0       # m/s
-    max_velocity_z: float = 3.0        # m/s
-    max_acceleration: float = 5.0      # m/s²
+    max_velocity_xy: float = 5.0  # m/s
+    max_velocity_z: float = 3.0  # m/s
+    max_acceleration: float = 5.0  # m/s²
 
     # Collision avoidance
-    collision_radius: float = 0.8      # m (tehlikeli mesafe)
-    avoidance_radius: float = 2.5      # m (kaçınma başlar)
-    avoidance_strength: float = 3.0    # Kaçınma gücü
+    collision_radius: float = 0.8  # m (tehlikeli mesafe)
+    avoidance_radius: float = 2.5  # m (kaçınma başlar)
+    avoidance_strength: float = 3.0  # Kaçınma gücü
 
     # Target tracking (PD controller)
-    kp: float = 1.5                    # Proportional gain
-    kd: float = 0.3                    # Derivative gain
+    kp: float = 1.5  # Proportional gain
+    kd: float = 0.3  # Derivative gain
 
     # Sensör özellikleri (opsiyonel)
     enable_sensors: bool = True
-    gps_noise_std: float = 1.0         # m (GPS gürültüsü)
-    gps_update_rate: float = 10.0      # Hz
-    imu_noise_std: float = 0.1         # m/s² (IMU gürültüsü)
+    gps_noise_std: float = 1.0  # m (GPS gürültüsü)
+    gps_update_rate: float = 10.0  # Hz
+    imu_noise_std: float = 0.1  # m/s² (IMU gürültüsü)
 
 
 # ============================================================================
 # PHYSICS ENGINE (GPU PARALLEL)
 # ============================================================================
+
 
 class GPUPhysicsEngine:
     """
@@ -252,11 +259,9 @@ class GPUPhysicsEngine:
             spacing = 3.0
             for i in range(self.num_drones):
                 row, col = divmod(i, cols)
-                self.positions[i] = [
-                    (col - cols/2) * spacing,
-                    (row - cols/2) * spacing,
-                    0.1
-                ]
+                self.positions[i, 0] = (col - cols / 2) * spacing
+                self.positions[i, 1] = (row - cols / 2) * spacing
+                self.positions[i, 2] = 0.1
 
     def arm_all(self):
         """Tüm drone'ları aktifleştir"""
@@ -317,9 +322,7 @@ class GPUPhysicsEngine:
 
         # Armed değilse thrust = 0
         target_thrust = xp.where(
-            self.armed[:, None],
-            target_thrust,
-            xp.zeros_like(target_thrust)
+            self.armed[:, None], target_thrust, xp.zeros_like(target_thrust)
         )
 
         # ================================================================
@@ -334,12 +337,16 @@ class GPUPhysicsEngine:
         alpha = dt / (tau + dt)  # First-order filter katsayısı
 
         # Mevcut thrust (motor_states'ten)
-        current_thrust = xp.sum(self.motor_states, axis=1, keepdims=True) * max_thrust / 4
+        current_thrust = (
+            xp.sum(self.motor_states, axis=1, keepdims=True) * max_thrust / 4
+        )
         current_thrust = xp.tile(current_thrust, (1, 3))
         current_thrust[:, :2] = 0  # Sadece Z thrust var şimdilik
 
         # Thrust güncelle (yavaşça hedefe yaklaş)
-        actual_thrust = (1 - alpha) * current_thrust[:, 2:3] + alpha * target_thrust[:, 2:3]
+        actual_thrust = (1 - alpha) * current_thrust[:, 2:3] + alpha * target_thrust[
+            :, 2:3
+        ]
 
         # Motor states güncelle (normalized)
         self.motor_states[:, :] = (actual_thrust / max_thrust * 4).repeat(4, axis=1)
@@ -395,9 +402,7 @@ class GPUPhysicsEngine:
         xy_scale = xp.minimum(1.0, self.cfg.max_velocity_xy / (xy_speed + 0.001))
         self.velocities[:, :2] *= xy_scale
         self.velocities[:, 2] = xp.clip(
-            self.velocities[:, 2],
-            -self.cfg.max_velocity_z,
-            self.cfg.max_velocity_z
+            self.velocities[:, 2], -self.cfg.max_velocity_z, self.cfg.max_velocity_z
         )
 
         # Pozisyon güncelle
@@ -409,9 +414,7 @@ class GPUPhysicsEngine:
         on_ground = self.positions[:, 2] < 0
         self.positions[:, 2] = xp.where(on_ground, 0.0, self.positions[:, 2])
         self.velocities[:, 2] = xp.where(
-            on_ground & (self.velocities[:, 2] < 0),
-            0.0,
-            self.velocities[:, 2]
+            on_ground & (self.velocities[:, 2] < 0), 0.0, self.velocities[:, 2]
         )
 
         # ================================================================
@@ -436,22 +439,23 @@ class GPUPhysicsEngine:
         """
         if GPU_AVAILABLE:
             return {
-                'positions': cp.asnumpy(self.positions),
-                'velocities': cp.asnumpy(self.velocities),
-                'orientations': cp.asnumpy(self.orientations),
-                'armed': cp.asnumpy(self.armed),
+                "positions": cp.asnumpy(self.positions),
+                "velocities": cp.asnumpy(self.velocities),
+                "orientations": cp.asnumpy(self.orientations),
+                "armed": cp.asnumpy(self.armed),
             }
         return {
-            'positions': self.positions.copy(),
-            'velocities': self.velocities.copy(),
-            'orientations': self.orientations.copy(),
-            'armed': self.armed.copy(),
+            "positions": self.positions.copy(),
+            "velocities": self.velocities.copy(),
+            "orientations": self.orientations.copy(),
+            "armed": self.armed.copy(),
         }
 
 
 # ============================================================================
 # SENSOR SIMULATION (GPU PARALLEL) - OPSİYONEL
 # ============================================================================
+
 
 class GPUSensorSimulator:
     """
@@ -496,8 +500,13 @@ class GPUSensorSimulator:
         print(f"[SENSORS] GPS noise: ±{config.gps_noise_std}m")
         print(f"[SENSORS] Ready!")
 
-    def update(self, true_positions: xp.ndarray, true_velocities: xp.ndarray,
-               dt: float, current_time: float) -> Tuple[xp.ndarray, xp.ndarray]:
+    def update(
+        self,
+        true_positions: xp.ndarray,
+        true_velocities: xp.ndarray,
+        dt: float,
+        current_time: float,
+    ) -> Tuple[xp.ndarray, xp.ndarray]:
         """
         Sensörleri güncelle ve tahmin döndür.
 
@@ -521,9 +530,7 @@ class GPUSensorSimulator:
             # GPS gürültüsü ekle (Gaussian noise)
             # GPU'da: xp.random.normal N drone için paralel çalışır!
             gps_noise = xp.random.normal(
-                0,
-                self.cfg.gps_noise_std,
-                (self.num_drones, 3)
+                0, self.cfg.gps_noise_std, (self.num_drones, 3)
             ).astype(xp.float32)
 
             self.gps_positions = true_positions + gps_noise
@@ -536,9 +543,7 @@ class GPUSensorSimulator:
         # IMU SİMÜLASYONU (yüksek frekanslı, gürültülü)
         # ================================================================
         imu_noise = xp.random.normal(
-            0,
-            self.cfg.imu_noise_std,
-            (self.num_drones, 3)
+            0, self.cfg.imu_noise_std, (self.num_drones, 3)
         ).astype(xp.float32)
 
         # IMU ivme ölçer (gravity + hareket)
@@ -555,11 +560,13 @@ class GPUSensorSimulator:
         self.estimated_positions = xp.where(
             self.gps_valid[:, None],
             (1 - alpha) * self.estimated_positions + alpha * self.gps_positions,
-            self.estimated_positions + self.estimated_velocities * dt  # Dead reckoning
+            self.estimated_positions + self.estimated_velocities * dt,  # Dead reckoning
         )
 
         # Hız tahmini (pozisyon değişiminden)
-        self.estimated_velocities = (1 - alpha) * self.estimated_velocities + alpha * true_velocities
+        self.estimated_velocities = (
+            1 - alpha
+        ) * self.estimated_velocities + alpha * true_velocities
 
         return self.estimated_positions.copy(), self.estimated_velocities.copy()
 
@@ -567,20 +574,21 @@ class GPUSensorSimulator:
         """Ham sensör verilerini döndür (debug için)"""
         if GPU_AVAILABLE:
             return {
-                'gps_positions': cp.asnumpy(self.gps_positions),
-                'gps_valid': cp.asnumpy(self.gps_valid),
-                'imu_accel': cp.asnumpy(self.imu_accel),
+                "gps_positions": cp.asnumpy(self.gps_positions),
+                "gps_valid": cp.asnumpy(self.gps_valid),
+                "imu_accel": cp.asnumpy(self.imu_accel),
             }
         return {
-            'gps_positions': self.gps_positions.copy(),
-            'gps_valid': self.gps_valid.copy(),
-            'imu_accel': self.imu_accel.copy(),
+            "gps_positions": self.gps_positions.copy(),
+            "gps_valid": self.gps_valid.copy(),
+            "imu_accel": self.imu_accel.copy(),
         }
 
 
 # ============================================================================
 # SWARM CONTROLLER (GPU PARALLEL)
 # ============================================================================
+
 
 class GPUSwarmController:
     """
@@ -626,8 +634,9 @@ class GPUSwarmController:
         """Hedef pozisyonları ayarla"""
         self.targets = xp.asarray(targets, dtype=xp.float32)
 
-    def compute_velocities(self, positions: xp.ndarray, velocities: xp.ndarray,
-                          dt: float) -> xp.ndarray:
+    def compute_velocities(
+        self, positions: xp.ndarray, velocities: xp.ndarray, dt: float
+    ) -> xp.ndarray:
         """
         ====================================================================
         ANA KONTROL HESAPLAMASI (GPU PARALLEL)
@@ -678,17 +687,14 @@ class GPUSwarmController:
         strength = xp.where(
             dist < self.cfg.collision_radius,
             xp.ones_like(dist) * self.cfg.avoidance_strength,  # Tehlike!
-            (self.cfg.avoidance_radius - dist) /
-            (self.cfg.avoidance_radius - self.cfg.collision_radius)
+            (self.cfg.avoidance_radius - dist)
+            / (self.cfg.avoidance_radius - self.cfg.collision_radius),
         )
         strength = xp.maximum(strength, 0)
 
         # Toplam avoidance vektörü
         # Her drone için: diğer tüm drone'lardan uzaklaşma toplamı
-        separation = xp.sum(
-            direction * strength[:, :, None] * mask[:, :, None],
-            axis=1
-        )
+        separation = xp.sum(direction * strength[:, :, None] * mask[:, :, None], axis=1)
 
         # ================================================================
         # 2. TARGET TRACKING (PD Controller)
@@ -720,10 +726,7 @@ class GPUSwarmController:
         velocity = w1 × separation + w2 × tracking
         """
 
-        velocity_commands = (
-            self.cfg.avoidance_strength * separation +
-            1.0 * tracking
-        )
+        velocity_commands = self.cfg.avoidance_strength * separation + 1.0 * tracking
 
         # ================================================================
         # 4. VELOCITY LIMITING
@@ -736,9 +739,7 @@ class GPUSwarmController:
 
         # Z hız limiti
         velocity_commands[:, 2] = xp.clip(
-            velocity_commands[:, 2],
-            -self.cfg.max_velocity_z,
-            self.cfg.max_velocity_z
+            velocity_commands[:, 2], -self.cfg.max_velocity_z, self.cfg.max_velocity_z
         )
 
         return velocity_commands
@@ -747,21 +748,27 @@ class GPUSwarmController:
     # FORMATION COMMANDS
     # ====================================================================
 
-    def formation_grid(self, spacing: float = 3.0, altitude: float = 5.0,
-                       center: Tuple[float, float] = (0, 0)):
+    def formation_grid(
+        self,
+        spacing: float = 3.0,
+        altitude: float = 5.0,
+        center: Tuple[float, float] = (0, 0),
+    ):
         """Grid formasyonu hedefi ayarla"""
         cols = int(xp.ceil(xp.sqrt(self.num_drones)))
 
         for i in range(self.num_drones):
             row, col = divmod(i, cols)
-            self.targets[i] = [
-                center[0] + (col - cols/2) * spacing,
-                center[1] + (row - cols/2) * spacing,
-                altitude
-            ]
+            self.targets[i, 0] = center[0] + (col - cols / 2) * spacing
+            self.targets[i, 1] = center[1] + (row - cols / 2) * spacing
+            self.targets[i, 2] = altitude
 
-    def formation_circle(self, radius: float = 10.0, altitude: float = 5.0,
-                        center: Tuple[float, float] = (0, 0)):
+    def formation_circle(
+        self,
+        radius: float = 10.0,
+        altitude: float = 5.0,
+        center: Tuple[float, float] = (0, 0),
+    ):
         """Daire formasyonu hedefi ayarla"""
         angles = xp.linspace(0, 2 * xp.pi, self.num_drones, endpoint=False)
 
@@ -769,19 +776,23 @@ class GPUSwarmController:
         self.targets[:, 1] = center[1] + radius * xp.sin(angles)
         self.targets[:, 2] = altitude
 
-    def set_waypoint(self, waypoint: Tuple[float, float, float],
-                     drone_ids: list = None):
+    def set_waypoint(
+        self, waypoint: Tuple[float, float, float], drone_ids: list = None
+    ):
         """Belirli drone'ları waypoint'e gönder"""
         if drone_ids is None:
             drone_ids = range(self.num_drones)
 
         for i in drone_ids:
-            self.targets[i] = [waypoint[0], waypoint[1], waypoint[2]]
+            self.targets[i, 0] = waypoint[0]
+            self.targets[i, 1] = waypoint[1]
+            self.targets[i, 2] = waypoint[2]
 
 
 # ============================================================================
 # COMPLETE SIMULATION
 # ============================================================================
+
 
 class GPUSwarmSimulation:
     """
@@ -825,8 +836,7 @@ class GPUSwarmSimulation:
         print("=" * 70)
 
         self.config = SimulationConfig(
-            num_drones=num_drones,
-            enable_sensors=enable_sensors
+            num_drones=num_drones, enable_sensors=enable_sensors
         )
 
         # Katmanları oluştur
@@ -920,8 +930,7 @@ class GPUSwarmSimulation:
             # === 2. Sensör simülasyonu (opsiyonel) ===
             if self.sensors:
                 positions, velocities = self.sensors.update(
-                    positions, velocities,
-                    self.config.physics_dt, self.time
+                    positions, velocities, self.config.physics_dt, self.time
                 )
 
             # === 3. Controller ===
@@ -953,15 +962,15 @@ class GPUSwarmSimulation:
 
         # Hedefleri ekle
         if GPU_AVAILABLE:
-            state['targets'] = cp.asnumpy(self.controller.targets)
+            state["targets"] = cp.asnumpy(self.controller.targets)
         else:
-            state['targets'] = self.controller.targets.copy()
+            state["targets"] = self.controller.targets.copy()
 
         # Sensör verilerini ekle
         if self.sensors:
-            state['sensor_data'] = self.sensors.get_raw_data()
+            state["sensor_data"] = self.sensors.get_raw_data()
 
-        state['time'] = self.time
+        state["time"] = self.time
 
         return state
 
@@ -969,6 +978,7 @@ class GPUSwarmSimulation:
 # ============================================================================
 # DEMO & TEST
 # ============================================================================
+
 
 def run_benchmark():
     """Performans testi"""
@@ -1027,8 +1037,8 @@ def run_demo():
 
         if i % 25 == 0:
             state = sim.get_state()
-            avg_alt = np.mean(state['positions'][:, 2])
-            avg_speed = np.mean(np.linalg.norm(state['velocities'], axis=1))
+            avg_alt = np.mean(state["positions"][:, 2])
+            avg_speed = np.mean(np.linalg.norm(state["velocities"], axis=1))
             print(f"   t={sim.time:.1f}s: alt={avg_alt:.2f}m, speed={avg_speed:.2f}m/s")
 
     print("\nDemo complete!")
